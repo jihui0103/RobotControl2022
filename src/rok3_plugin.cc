@@ -138,12 +138,164 @@ namespace gazebo
     GZ_REGISTER_MODEL_PLUGIN(rok3_plugin);
 }
 
+//*get transformI0()
+MatrixXd getTransformI0(){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    
+    tmp_m << 1, 0, 0, 0, \
+             0, 1, 0, 0, \
+             0, 0, 1, 0, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+
+MatrixXd jointtotransform01(VectorXd q){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    double Q = q(0);
+    
+    tmp_m << cos(Q), 0, sin(Q), 0, \
+             0, 1, 0, 0, \
+             -sin(Q), 0, cos(Q), 1, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd jointtotransform12(VectorXd q){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    double Q = q(1);
+    
+    tmp_m << cos(Q), 0, sin(Q), 0, \
+             0, 1, 0, 0, \
+             -sin(Q), 0, cos(Q), 1, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd jointtotransform23(VectorXd q){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    double Q = q(2);
+    
+    tmp_m << cos(Q), 0, sin(Q), 0, \
+             0, 1, 0, 0, \
+             -sin(Q), 0, cos(Q), 1, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd getTransform3E(){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    
+    tmp_m << 1, 0, 0, 0, \
+             0, 1, 0, 0, \
+             0, 0, 1, 1, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd jointToRotMat(VectorXd q){
+    MatrixXd tmp_m(4,4), tmp_c(3,3);
+    
+    tmp_m = getTransformI0()
+            * jointtotransform01(q)
+            * jointtotransform12(q)
+            * jointtotransform23(q)
+            * getTransform3E();
+    
+    tmp_c = tmp_m.block(0,0,3,3);
+    
+    
+    return tmp_c;
+}
+
+VectorXd jointToPosition(VectorXd q){
+    VectorXd tmp_v = VectorXd::Zero(3);
+    MatrixXd tmp_m(4,4);
+    //tmp_m = MatrixXd::Identity(4,4);
+    tmp_m = getTransformI0()
+            * jointtotransform01(q)
+            * jointtotransform12(q)
+            * jointtotransform23(q)
+            * getTransform3E();
+    
+    tmp_v = tmp_m.block(0,3,3,1);
+    
+    
+    return tmp_v;
+}
+VectorXd rotToEulerZYX(MatrixXd rotMat){
+    VectorXd tmp_v = VectorXd::Zero(3);
+    MatrixXd tmp_m(3,3);
+    
+    tmp_m = rotMat;
+    
+    tmp_v(0) = atan2(tmp_m(1,0), tmp_m(0,0));
+    tmp_v(1) = atan2(-tmp_m(2,0), sqrt(pow(tmp_m(2,1),2)+pow(tmp_m(2,2),2)));
+    tmp_v(2) = atan2(tmp_m(2,1), tmp_m(2,2));
+    
+    tmp_v = tmp_v * 180 / PI;
+    
+    return tmp_v;
+}
+
+//*preparing robot control practice
+void Practice(){
+    
+    MatrixXd TI0(4,4), T3E(4,4), T01(4,4), T12(4,4), T23(4,4), TIE(4,4);
+    Vector3d q = {30, 30, 30};
+    Vector3d pos, euler;
+    MatrixXd CIE(3,3);
+    q = q*PI/180;
+    
+    TI0 = getTransformI0();
+    T3E = getTransform3E();
+    T01 = jointtotransform01(q);
+    T12 = jointtotransform12(q);
+    T23 = jointtotransform23(q);
+    
+    TIE = TI0*T01*T12*T23*T3E;
+    
+    pos = jointToPosition(q);
+    CIE = jointToRotMat(q);
+    euler = rotToEulerZYX(CIE);
+    
+    std::cout << "hello world" << std::endl;
+    std::cout << "TIE = " << TIE << std::endl;
+    
+    std::cout << "Positon = " << pos << std::endl;
+    std::cout << "CIE = " << CIE << std::endl;
+    std::cout << "Euler = " << euler << std::endl;
+
+}
+
+
+
+
+
+
+
+
 void gazebo::rok3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*/)
 {
     /*
      * Loading model data and initializing the system before simulation 
      */
-
+    
     //* model.sdf file based model data input to [physics::ModelPtr model] for gazebo simulation
     model = _model;
 
@@ -173,6 +325,7 @@ void gazebo::rok3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*
     last_update_time = model->GetWorld()->GetSimTime();
     update_connection = event::Events::ConnectWorldUpdateBegin(boost::bind(&rok3_plugin::UpdateAlgorithm, this));
 
+    Practice();
 }
 
 void gazebo::rok3_plugin::UpdateAlgorithm()
