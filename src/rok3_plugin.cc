@@ -159,9 +159,9 @@ MatrixXd jointtotransform01(VectorXd q){
     //tmp_m = MatrixXd::Identity(4,4);
     double Q = q(0);
     
-    tmp_m << cos(Q), 0, sin(Q), 0, \
-             0, 1, 0, 0, \
-             -sin(Q), 0, cos(Q), 1, \
+    tmp_m << cos(Q), -sin(Q), 0, 0, \
+             sin(Q), cos(Q), 0, 0.105, \
+             0, 0, 1, -0.1512, \
              0, 0, 0, 1;
     
     return tmp_m;
@@ -173,9 +173,9 @@ MatrixXd jointtotransform12(VectorXd q){
     //tmp_m = MatrixXd::Identity(4,4);
     double Q = q(1);
     
-    tmp_m << cos(Q), 0, sin(Q), 0, \
-             0, 1, 0, 0, \
-             -sin(Q), 0, cos(Q), 1, \
+    tmp_m << 1, 0, 0, 0, \
+             0, cos(Q), -sin(Q), 0, \
+             0, sin(Q), cos(Q), 0, \
              0, 0, 0, 1;
     
     return tmp_m;
@@ -189,20 +189,62 @@ MatrixXd jointtotransform23(VectorXd q){
     
     tmp_m << cos(Q), 0, sin(Q), 0, \
              0, 1, 0, 0, \
-             -sin(Q), 0, cos(Q), 1, \
+             -sin(Q), 0, cos(Q), 0, \
              0, 0, 0, 1;
     
     return tmp_m;
 }
 
-MatrixXd getTransform3E(){
+MatrixXd jointtotransform34(VectorXd q){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    double Q = q(3);
+    
+    tmp_m << cos(Q), 0, sin(Q), 0, \
+             0, 1, 0, 0, \
+             -sin(Q), 0, cos(Q), -0.35, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd jointtotransform45(VectorXd q){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    double Q = q(4);
+    
+    tmp_m << cos(Q), 0, sin(Q), 0, \
+             0, 1, 0, 0, \
+             -sin(Q), 0, cos(Q), -0.35, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd jointtotransform56(VectorXd q){
+    MatrixXd tmp_m(4,4);
+    
+    //tmp_m = MatrixXd::Identity(4,4);
+    double Q = q(5);
+    
+    tmp_m << 1, 0, 0, 0, \
+             0, cos(Q), -sin(Q), 0, \
+             0, sin(Q), cos(Q), 0, \
+             0, 0, 0, 1;
+    
+    return tmp_m;
+}
+
+MatrixXd getTransform6E(){
     MatrixXd tmp_m(4,4);
     
     //tmp_m = MatrixXd::Identity(4,4);
     
     tmp_m << 1, 0, 0, 0, \
              0, 1, 0, 0, \
-             0, 0, 1, 1, \
+             0, 0, 1, -0.09, \
              0, 0, 0, 1;
     
     return tmp_m;
@@ -215,7 +257,10 @@ MatrixXd jointToRotMat(VectorXd q){
             * jointtotransform01(q)
             * jointtotransform12(q)
             * jointtotransform23(q)
-            * getTransform3E();
+            * jointtotransform34(q)
+            * jointtotransform45(q)
+            * jointtotransform56(q)
+            * getTransform6E();
     
     tmp_c = tmp_m.block(0,0,3,3);
     
@@ -231,7 +276,10 @@ VectorXd jointToPosition(VectorXd q){
             * jointtotransform01(q)
             * jointtotransform12(q)
             * jointtotransform23(q)
-            * getTransform3E();
+            * jointtotransform34(q)
+            * jointtotransform45(q)
+            * jointtotransform56(q)
+            * getTransform6E();
     
     tmp_v = tmp_m.block(0,3,3,1);
     
@@ -256,19 +304,23 @@ VectorXd rotToEulerZYX(MatrixXd rotMat){
 //*preparing robot control practice
 void Practice(){
     
-    MatrixXd TI0(4,4), T3E(4,4), T01(4,4), T12(4,4), T23(4,4), TIE(4,4);
-    Vector3d q = {30, 30, 30};
+    MatrixXd TI0(4,4), T6E(4,4), T01(4,4), T12(4,4), T23(4,4), T34(4,4), T45(4,4), T56(4,4), TIE(4,4);
+    VectorXd q = VectorXd::Zero(6);
     Vector3d pos, euler;
     MatrixXd CIE(3,3);
+    q(0)=10; q(1)=20; q(2)=30; q(3)=40; q(4)=50; q(5)=60;
     q = q*PI/180;
     
     TI0 = getTransformI0();
-    T3E = getTransform3E();
+    T6E = getTransform6E();
     T01 = jointtotransform01(q);
     T12 = jointtotransform12(q);
     T23 = jointtotransform23(q);
+    T34 = jointtotransform34(q);
+    T45 = jointtotransform45(q);
+    T56 = jointtotransform56(q);
     
-    TIE = TI0*T01*T12*T23*T3E;
+    TIE = TI0*T01*T12*T23*T34*T45*T56*T6E;
     
     pos = jointToPosition(q);
     CIE = jointToRotMat(q);
