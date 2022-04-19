@@ -341,7 +341,7 @@ void Practice(){
 
 
 
-
+//set up F
 void gazebo::rok3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*/)
 {
     /*
@@ -386,7 +386,7 @@ void gazebo::rok3_plugin::UpdateAlgorithm()
      * Algorithm update while simulation
      */
 
-    //* UPDATE TIME : 1ms
+    //* UPDATE TIME : 1ms - we can change in code <world>
     common::Time current_time = model->GetWorld()->GetSimTime();
     dt = current_time.Double() - last_update_time.Double();
     //    cout << "dt:" << dt << endl;
@@ -399,6 +399,16 @@ void gazebo::rok3_plugin::UpdateAlgorithm()
 
     //* Read Sensors data
     GetjointData();
+    
+    //*target angles
+    joint[LHY].targetRadian = 10 * 3.14 / 180;
+    joint[LHR].targetRadian = 20 * 3.14 / 180;
+    joint[LHP].targetRadian = 30 * 3.14 / 180;
+    joint[LKN].targetRadian = 40 * 3.14 / 180;
+    joint[LAP].targetRadian = 50 * 3.14 / 180;
+    joint[LAR].targetRadian = 60 * 3.14 / 180;
+    
+    
     
     //* Joint Controller
     jointController();
