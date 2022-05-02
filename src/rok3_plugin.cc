@@ -301,12 +301,163 @@ VectorXd rotToEulerZYX(MatrixXd rotMat){
     return tmp_v;
 }
 
+
+MatrixXd jointToPosJac(VectorXd q)
+{
+    // Input: vector of generalized coordinates (joint angles)
+    // Output: J_P, Jacobian of the end-effector translation which maps joint velocities to end-effector linear velocities in I frame.
+    MatrixXd J_P = MatrixXd::Zero(3,6);
+    MatrixXd T_I0(4,4), T_01(4,4), T_12(4,4), T_23(4,4), T_34(4,4), T_45(4,4), T_56(4,4), T_6E(4,4);
+    MatrixXd T_I1(4,4), T_I2(4,4), T_I3(4,4), T_I4(4,4), T_I5(4,4), T_I6(4,4), T_IE(4,4); 
+    MatrixXd R_I1(3,3), R_I2(3,3), R_I3(3,3), R_I4(3,3), R_I5(3,3), R_I6(3,3);
+    Vector3d r_I_I1, r_I_I2, r_I_I3, r_I_I4, r_I_I5, r_I_I6;
+    Vector3d n_1, n_2, n_3, n_4, n_5, n_6;
+    Vector3d n_I_1,n_I_2,n_I_3,n_I_4,n_I_5,n_I_6;
+    Vector3d r_I_IE;
+
+
+    //* Compute the relative homogeneous transformation matrices.
+    T_I0 = getTransformI0();
+    T_01 = jointtotransform01(q);
+    T_12 = jointtotransform12(q);
+    T_23 = jointtotransform23(q);
+    T_34 = jointtotransform34(q);
+    T_45 = jointtotransform45(q);
+    T_56 = jointtotransform56(q);
+    T_6E = getTransform6E();
+
+    //* Compute the homogeneous transformation matrices from frame k to the inertial frame I.
+    T_I1 = T_I0 * T_01;
+    T_I2 = T_I1 * T_12;
+    T_I3 = T_I2 * T_23;
+    T_I4 = T_I3 * T_34;
+    T_I5 = T_I4 * T_45;
+    T_I6 = T_I5 * T_56;
+
+    //* Extract the rotation matrices from each homogeneous transformation matrix. Use sub-matrix of EIGEN. https://eigen.tuxfamily.org/dox/group__QuickRefPage.html
+    R_I1 = T_I1.block(0,0,3,3);
+    R_I2 = T_I2.block(0,0,3,3);
+    R_I3 = T_I3.block(0,0,3,3);
+    R_I4 = T_I4.block(0,0,3,3);
+    R_I5 = T_I5.block(0,0,3,3);
+    R_I6 = T_I6.block(0,0,3,3);
+
+    //* Extract the position vectors from each homogeneous transformation matrix. Use sub-matrix of EIGEN.
+    r_I_I1 = T_I1.block(0,3,3,1);
+    r_I_I2 = T_I2.block(0,3,3,1);
+    r_I_I3 = T_I3.block(0,3,3,1);
+    r_I_I4 = T_I4.block(0,3,3,1);
+    r_I_I5 = T_I5.block(0,3,3,1);
+    r_I_I6 = T_I6.block(0,3,3,1);
+
+    //* Define the unit vectors around which each link rotate in the precedent coordinate frame.
+    n_1 << 0, 0, 1;
+    n_2 << 1, 0, 0;
+    n_3 << 0, 1, 0;
+    n_4 << 0, 1, 0;
+    n_5 << 0, 1, 0;
+    n_6 << 1, 0, 0;
+
+    //* Compute the unit vectors for the inertial frame I.
+    n_I_1 = R_I1*n_1;
+    n_I_2 = R_I2*n_2;
+    n_I_3 = R_I3*n_3;
+    n_I_4 = R_I4*n_4;
+    n_I_5 = R_I5*n_5;
+    n_I_6 = R_I6*n_6;
+
+    //* Compute the end-effector position vector.
+    T_IE = T_I6 * T_6E;
+    r_I_IE = T_IE.block(0,3,3,1);
+
+
+    //* Compute the translational Jacobian. Use cross of EIGEN.
+    J_P.col(0) << n_I_1.cross(r_I_IE-r_I_I1);
+    J_P.col(1) << n_I_2.cross(r_I_IE-r_I_I2);
+    J_P.col(2) << n_I_3.cross(r_I_IE-r_I_I3);
+    J_P.col(3) << n_I_4.cross(r_I_IE-r_I_I4);
+    J_P.col(4) << n_I_5.cross(r_I_IE-r_I_I5);
+    J_P.col(5) << n_I_6.cross(r_I_IE-r_I_I6);
+
+    //std::cout << "Test, JP:" << std::endl << J_P << std::endl;
+
+    return J_P;
+}
+
+
+MatrixXd jointToRotJac(VectorXd q)
+{
+   // Input: vector of generalized coordinates (joint angles)
+    // Output: J_R, Jacobian of the end-effector orientation which maps joint velocities to end-effector angular velocities in I frame.
+    MatrixXd J_R(3,6);
+    MatrixXd T_I0(4,4), T_01(4,4), T_12(4,4), T_23(4,4), T_34(4,4), T_45(4,4), T_56(4,4), T_6E(4,4);
+    MatrixXd T_I1(4,4), T_I2(4,4), T_I3(4,4), T_I4(4,4), T_I5(4,4), T_I6(4,4);
+    MatrixXd R_I1(3,3), R_I2(3,3), R_I3(3,3), R_I4(3,3), R_I5(3,3), R_I6(3,3);
+    Vector3d n_1, n_2, n_3, n_4, n_5, n_6;
+
+    //* Compute the relative homogeneous transformation matrices.
+    T_I0 = getTransformI0();
+    T_01 = jointtotransform01(q);
+    T_12 = jointtotransform12(q);
+    T_23 = jointtotransform23(q);
+    T_34 = jointtotransform34(q);
+    T_45 = jointtotransform45(q);
+    T_56 = jointtotransform56(q);
+    T_6E = getTransform6E();
+
+
+    //* Compute the homogeneous transformation matrices from frame k to the inertial frame I.
+    T_I1 = T_I0 * T_01;
+    T_I2 = T_I1 * T_12;
+    T_I3 = T_I2 * T_23;
+    T_I4 = T_I3 * T_34;
+    T_I5 = T_I4 * T_45;
+    T_I6 = T_I5 * T_56;
+
+
+    //* Extract the rotation matrices from each homogeneous transformation matrix.
+    R_I1 = T_I1.block(0,0,3,3);
+    R_I2 = T_I2.block(0,0,3,3);
+    R_I3 = T_I3.block(0,0,3,3);
+    R_I4 = T_I4.block(0,0,3,3);
+    R_I5 = T_I5.block(0,0,3,3);
+    R_I6 = T_I6.block(0,0,3,3);
+
+
+    //* Define the unit vectors around which each link rotate in the precedent coordinate frame.
+    n_1 << 0, 0, 1;
+    n_2 << 1, 0, 0;
+    n_3 << 0, 1, 0;
+    n_4 << 0, 1, 0;
+    n_5 << 0, 1, 0;
+    n_6 << 1, 0, 0;
+
+
+    //* Compute the translational Jacobian.
+    J_R.col(0) << R_I1*n_1;
+    J_R.col(1) << R_I2*n_2;
+    J_R.col(2) << R_I3*n_3;
+    J_R.col(3) << R_I4*n_4;
+    J_R.col(4) << R_I5*n_5;
+    J_R.col(5) << R_I6*n_6;
+
+
+    //std::cout << "Test, J_R:" << std::endl << J_R << std::endl;
+
+    return J_R;
+}
+
+
+
 //*preparing robot control practice
 void Practice(){
     
     MatrixXd TI0(4,4), T6E(4,4), T01(4,4), T12(4,4), T23(4,4), T34(4,4), T45(4,4), T56(4,4), TIE(4,4);
     VectorXd q = VectorXd::Zero(6);
     Vector3d pos, euler;
+    MatrixXd J_Position(3,6);
+    MatrixXd J_Rotation(3,6);
+    
     MatrixXd CIE(3,3);
     q(0)=10; q(1)=20; q(2)=30; q(3)=40; q(4)=50; q(5)=60;
     q = q*PI/180;
@@ -326,12 +477,18 @@ void Practice(){
     CIE = jointToRotMat(q);
     euler = rotToEulerZYX(CIE);
     
-    std::cout << "hello world" << std::endl;
-    std::cout << "TIE = " << TIE << std::endl;
+    J_Position = jointToPosJac(q);
+    J_Rotation = jointToRotJac(q);
     
-    std::cout << "Positon = " << pos << std::endl;
-    std::cout << "CIE = " << CIE << std::endl;
-    std::cout << "Euler = " << euler << std::endl;
+    std::cout << "hello world" << std::endl;
+//    std::cout << "TIE = " << TIE << std::endl;
+//    
+//    std::cout << "Positon = " << pos << std::endl;
+//    std::cout << "CIE = " << CIE << std::endl;
+//    std::cout << "Euler = " << euler << std::endl;
+    
+    std::cout << "J_Position = " << J_Position << std::endl;
+    std::cout << "J_Rotation = " << J_Rotation << std::endl;
 
 }
 
