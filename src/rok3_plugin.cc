@@ -447,7 +447,49 @@ MatrixXd jointToRotJac(VectorXd q)
     return J_R;
 }
 
+MatrixXd pseudoInverseMat(MatrixXd A, double lambda)
+{
+    // Input: Any m-by-n matrix
+    // Output: An n-by-m pseudo-inverse of the input according to the Moore-Penrose formula
+    MatrixXd pinvA;
+    MatrixXd I;
 
+    int m = A.rows();
+    int n = A.cols();
+    if(m>=n){
+        I = MatrixXd::Identity(n,n);
+        pinvA = ((A.transpose() * A + lambda*lambda*I).inverse())*A.transpose();
+    }
+    else if(m<n){
+        I = MatrixXd::Identity(m,m);
+        pinvA = A.transpose()*((A * A.transpose() + lambda*lambda*I).inverse());
+    }
+
+    return pinvA;
+}
+
+VectorXd rotMatToRotVec(MatrixXd C)
+{
+    // Input: a rotation matrix C
+    // Output: the rotational vector which describes the rotation C
+    Vector3d phi,n;
+    double th;
+
+    if(fabs(th)<0.001){
+         n << 0,0,0;
+    }
+    else{
+
+        th = acos( (C(0,0) + C(1,1) + C(2,2)) / 2.0 );
+
+        n << (C(2,1) - C(1,2)), (C(0,2) - C(2,0)) , (C(1,0) - C(0,1)) ;
+        n = (1.0 / (2.0*sin(th))) * n;
+    }
+
+    phi = th*n;
+
+    return phi;
+}
 
 //*preparing robot control practice
 void Practice(){
@@ -457,6 +499,7 @@ void Practice(){
     Vector3d pos, euler;
     MatrixXd J_Position(3,6);
     MatrixXd J_Rotation(3,6);
+    MatrixXd J(6,6);
     
     MatrixXd CIE(3,3);
     q(0)=10; q(1)=20; q(2)=30; q(3)=40; q(4)=50; q(5)=60;
@@ -480,6 +523,33 @@ void Practice(){
     J_Position = jointToPosJac(q);
     J_Rotation = jointToRotJac(q);
     
+
+    J << jointToPosJac(q),\
+         jointToRotJac(q);
+                   
+    MatrixXd pinvJ;
+    pinvJ = pseudoInverseMat(J, 0.0);
+
+
+    std::cout<<"PseudoInverse : "<<pinvJ<<std::endl;
+    
+    VectorXd q_des(6),q_init(6);
+    MatrixXd C_err(3,3), C_des(3,3), C_init(3,3);
+    
+    q_des(0)=10; q_des(1)=20; q_des(2)=30; q_des(3)=40; q_des(4)=50; q_des(5)=60;
+    q_des = q_des*PI/180;
+
+    q_init = 0.5*q_des;
+    C_des = jointToRotMat(q_des);
+    C_init = jointToRotMat(q_init);
+    C_err = C_des * C_init.transpose();
+
+    VectorXd dph(3);
+
+    dph = rotMatToRotVec(C_err);
+    
+    std::cout<<" dph : "<<dph<<std::endl;
+    
     std::cout << "hello world" << std::endl;
 //    std::cout << "TIE = " << TIE << std::endl;
 //    
@@ -487,8 +557,8 @@ void Practice(){
 //    std::cout << "CIE = " << CIE << std::endl;
 //    std::cout << "Euler = " << euler << std::endl;
     
-    std::cout << "J_Position = " << J_Position << std::endl;
-    std::cout << "J_Rotation = " << J_Rotation << std::endl;
+//    std::cout << "J_Position = " << J_Position << std::endl;
+//    std::cout << "J_Rotation = " << J_Rotation << std::endl;
 
 }
 
