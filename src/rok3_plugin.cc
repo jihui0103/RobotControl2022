@@ -472,24 +472,92 @@ VectorXd rotMatToRotVec(MatrixXd C)
 {
     // Input: a rotation matrix C
     // Output: the rotational vector which describes the rotation C
-    Vector3d phi,n;
+    VectorXd phi(3),n(3);
     double th;
+    
+    th = acos((C(0,0)+C(1,1)+C(2,2) - 1 )/2);
 
     if(fabs(th)<0.001){
          n << 0,0,0;
     }
     else{
-
-        th = acos( (C(0,0) + C(1,1) + C(2,2)) / 2.0 );
-
-        n << (C(2,1) - C(1,2)), (C(0,2) - C(2,0)) , (C(1,0) - C(0,1)) ;
-        n = (1.0 / (2.0*sin(th))) * n;
+        n << 1/(2*sin(th))*(C(2,1)-C(1,2)),
+             1/(2*sin(th))*(C(0,2)-C(2,0)),   
+             1/(2*sin(th))*(C(1,0)-C(0,1));
     }
 
-    phi = th*n;
+    phi = th * n;
 
     return phi;
 }
+
+VectorXd inverseKinematics(Vector3d r_des, MatrixXd C_des, VectorXd q0, double tol)
+{
+    // Input: desired end-effector position, desired end-effector orientation, initial guess for joint angles, threshold for the stopping-criterion
+    // Output: joint angles which match desired end-effector position and orientation
+    double num_it = 0;
+    MatrixXd J_P(3,6), J_R(3,6), J(6,6), pinvJ(6,6), C_err(3,3), C_IE(3,3);
+    VectorXd q(6),dq(6),dXe(6);
+    VectorXd dr(3), dph(3);
+    double lambda;
+
+    
+    //* Set maximum number of iterations
+    double max_it = 200;
+
+    //* Initialize the solution with the initial guess
+
+    q=q0;
+    C_IE = jointToRotMat(q);
+    C_err = C_des*C_IE.transpose();
+
+    //* Damping factor
+    lambda = 0.001;
+
+    //* Initialize error
+    dr = r_des -  jointToPosition(q);
+    dph = rotMatToRotVec(C_err) ;
+    dXe << dr(0), dr(1), dr(2), dph(0), dph(1), dph(2);
+
+    ////////////////////////////////////////////////
+    //** Iterative inverse kinematics
+    ////////////////////////////////////////////////
+
+    //* Iterate until terminating condition
+    while (num_it<max_it && dXe.norm()>tol)
+    {
+
+        //Compute Inverse Jacobian
+        J_P = jointToPosJac(q);
+        J_R = jointToRotJac(q);
+
+        J.block(0,0,3,6) = J_P;
+        J.block(3,0,3,6) = J_R; // Geometric Jacobian
+
+        // Convert to Geometric Jacobian to Analytic Jacobian
+        dq = pseudoInverseMat(J,lambda)*dXe;
+
+        // Update law
+        q += 0.5*dq;
+
+        // Update error
+        C_IE = jointToRotMat(q);
+        C_err = C_des*C_IE.transpose();
+
+        dr = r_des -  jointToPosition(q);
+        dph = rotMatToRotVec(C_err);
+        dXe << dr(0), dr(1), dr(2), dph(0), dph(1), dph(2);
+
+
+        num_it++;
+    }
+    std::cout << "iteration: " << num_it << ", value: " << 180./M_PI*q << std::endl;
+
+    return q;
+}
+
+
+
 
 //*preparing robot control practice
 void Practice(){
@@ -502,7 +570,7 @@ void Practice(){
     MatrixXd J(6,6);
     
     MatrixXd CIE(3,3);
-    q(0)=10; q(1)=20; q(2)=30; q(3)=40; q(4)=50; q(5)=60;
+    q(0)=0; q(1)=0; q(2)=-60; q(3)=120; q(4)=-60; q(5)=0;
     q = q*PI/180;
     
     TI0 = getTransformI0();
@@ -531,7 +599,7 @@ void Practice(){
     pinvJ = pseudoInverseMat(J, 0.0);
 
 
-    std::cout<<"PseudoInverse : "<<pinvJ<<std::endl;
+    //std::cout<<"PseudoInverse : "<<pinvJ<<std::endl;
     
     VectorXd q_des(6),q_init(6);
     MatrixXd C_err(3,3), C_des(3,3), C_init(3,3);
@@ -544,13 +612,20 @@ void Practice(){
     C_init = jointToRotMat(q_init);
     C_err = C_des * C_init.transpose();
 
-    VectorXd dph(3);
+    VectorXd dph(3), r_des(3), q_cal(3);
 
     dph = rotMatToRotVec(C_err);
+   // r_des = jointToPosition(q);
+   //C_des = jointToRotMat(q);
+    r_des << 0, 0.105, -0.55;
+    C_des = MatrixXd::Identity(3,3);
+    q_cal = inverseKinematics(r_des, C_des, q*0.5, 0.001) ;
+    q_cal = q_cal * 180/PI ;
     
-    std::cout<<" dph : "<<dph<<std::endl;
+//    std::cout<<" dph : "<< dph <<std::endl;
     
     std::cout << "hello world" << std::endl;
+   // std::cout << "q_cal = " << q_cal << std::endl;
 //    std::cout << "TIE = " << TIE << std::endl;
 //    
 //    std::cout << "Positon = " << pos << std::endl;
